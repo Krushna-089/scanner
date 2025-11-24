@@ -1,68 +1,142 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import json, os, zipfile
-from barcode import Code128
-from barcode.writer import ImageWriter
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barcode Scanner</title>
 
-app = Flask(__name__)
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 
-# Load items data
-with open("data.json") as f:
-    items = json.load(f)
+<style>
+body { background: #f5f5f5; padding: 20px; }
+.card { border-radius: 12px; }
+#videoContainer { display: none; margin-top: 10px; }
+#scanBtn { font-size: 30px; }
+#interactive video { width: 100% !important; height: auto !important; }
+.barcode-btn { width: 100%; margin-top: 10px; }
+</style>
+</head>
 
-# Ensure folders exist
-os.makedirs("barcodes", exist_ok=True)
-os.makedirs("zip_files", exist_ok=True)
+<body>
+<div class="container">
+
+    <div class="text-center mb-4">
+        <h2 class="fw-bold">Barcode Scanner</h2>
+    </div>
+
+    <div class="d-grid mb-4">
+        <a href="/download_all" class="btn btn-primary btn-lg">Download All Barcodes (ZIP)</a>
+    </div>
+
+    <div class="card p-4 shadow-sm text-center">
+        <h5>Scan Barcode</h5>
+        <button id="scanBtn" class="btn btn-dark mt-2">📷</button>
+        <div id="videoContainer">
+            <div id="interactive" class="viewport"></div>
+        </div>
+    </div>
+
+    <div id="resultBox" class="card p-4 shadow-sm mt-3" style="display:none;">
+        <h5 class="mb-3">Item Details</h5>
+        <p><strong>Name:</strong> <span id="name"></span></p>
+        <p><strong>Code:</strong> <span id="code"></span></p>
+        <p><strong>Quantity:</strong> <span id="qty"></span></p>
+        <p><strong>Unit Price:</strong> <span id="price"></span></p>
+
+        <a id="downloadLink" href="#">
+            <button class="btn btn-warning barcode-btn">Download Barcode (ZIP)</button>
+        </a>
+    </div>
+
+</div>
+
+<script>
+let isScanning = false;
+
+document.getElementById("scanBtn").addEventListener("click", () => {
+    if (!isScanning) startScanner();
+});
+
+async function startScanner() {
+    isScanning = true;
+    document.getElementById("videoContainer").style.display = "block";
+
+    // Request camera access
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }});
+    } catch (e) {
+        alert("Camera permission denied!");
+        console.error(e);
+        return;
+    }
+
+    // Get back camera
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
+    let backCam = cams.find(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")) || cams[0];
+
+    stream.getTracks().forEach(t => t.stop());
+    console.log("Selected Camera:", backCam.label);
+
+   Quagga.init({
+    inputStream: {
+        type: "LiveStream",
+        target: document.querySelector("#interactive"),
+        constraints: { deviceId: backCam.deviceId, width: 1280, height: 720 }
+    },
+    decoder: {
+        readers: ["code_128_reader", "ean_reader", "code_39_reader"] // <-- fixed
+    },
+    locate: true,
+    numOfWorkers: navigator.hardwareConcurrency || 4
+}, err => {
+    if (err) { console.error("Quagga init error:", err); return; }
+    Quagga.start();
+});
 
 
-def generate_barcode(code):
-    """Generate a barcode image and save it inside /barcodes"""
-    file_path = f"barcodes/{code}.png"
-    barcode = Code128(code, writer=ImageWriter())
-    barcode.save(file_path.replace(".png", ""), {"module_height": 15, "module_width": 0.4, "quiet_zone": 6})
+    // Debugging: log processed frames
+    Quagga.onProcessed(result => {
+        // console.log(result); // uncomment for full frame debug
+    });
 
-    return file_path
+    Quagga.onDetected(result => {
+        if (!result.codeResult) return;
+        let code = result.codeResult.code;
+        console.log("Detected barcode:", code);
+        stopScanner();
+        checkCode(code);
+    });
+}
 
+function stopScanner() {
+    isScanning = false;
+    Quagga.stop();
+    document.getElementById("videoContainer").style.display = "none";
+}
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+function checkCode(code) {
+    const formData = new FormData();
+    formData.append("code", code);
 
+    fetch("/fetch", { method: "POST", body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === "success") {
+                document.getElementById("resultBox").style.display = "block";
+                document.getElementById("name").innerText = data.data.Name;
+                document.getElementById("code").innerText = data.data.Code;
+                document.getElementById("qty").innerText = data.data.Quantity;
+                document.getElementById("price").innerText = data.data.UnitPrice;
+                document.getElementById("downloadLink").href = "/download_single/" + data.data.Code;
+            } else {
+                alert("❌ Data Not Found");
+            }
+        });
+}
+</script>
 
-@app.route("/fetch", methods=["POST"])
-def fetch():
-    entered_code = request.form.get("code")
-    
-    for item in items:
-        if item["Code"] == entered_code:
-            return jsonify({"status": "success", "data": item})
-    
-    return jsonify({"status": "error", "message": "Code not found"})
-
-
-@app.route("/download_single/<code>")
-def download_single(code):
-    # Generate barcode
-    barcode_path = generate_barcode(code)
-    
-    # Create zip file
-    zip_path = f"zip_files/{code}.zip"
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        zipf.write(barcode_path, os.path.basename(barcode_path))
-    
-    return send_file(zip_path, as_attachment=True)
-
-
-@app.route("/download_all")
-def download_all():
-    zip_path = "zip_files/all_barcodes.zip"
-    
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        for item in items:
-            path = generate_barcode(item["Code"])
-            zipf.write(path, os.path.basename(path))
-    
-    return send_file(zip_path, as_attachment=True)
-
-if __name__ == "__main__":
-    app.run(debug=True)
-
+</body>
+</html>
