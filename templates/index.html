@@ -13,8 +13,8 @@ body { background: #f5f5f5; padding: 20px; }
 .card { border-radius: 12px; }
 #videoContainer { display: none; margin-top: 10px; }
 #scanBtn { font-size: 30px; }
-#interactive video { width: 100% !important; height: auto !important; }
 .barcode-btn { width: 100%; margin-top: 10px; }
+.input-group-text { cursor: pointer; }
 </style>
 </head>
 
@@ -29,40 +29,71 @@ body { background: #f5f5f5; padding: 20px; }
         <a href="/download_all" class="btn btn-primary btn-lg">Download All Barcodes (ZIP)</a>
     </div>
 
-    <div class="card p-4 shadow-sm text-center">
-        <h5>Scan Barcode</h5>
-        <button id="scanBtn" class="btn btn-dark mt-2">📷</button>
+    <div class="card p-4 shadow-sm text-center mb-4">
+        <h5>Enter or Scan Barcode</h5>
+        <div class="input-group mt-2 mb-2">
+            <input id="barcodeInput" type="text" class="form-control" placeholder="Enter barcode manually">
+            <span class="input-group-text" id="scanIcon">📷</span>
+        </div>
+        <button id="enterBtn" class="btn btn-success mb-2">Enter</button>
         <div id="videoContainer">
             <div id="interactive" class="viewport"></div>
         </div>
     </div>
 
-    <div id="resultBox" class="card p-4 shadow-sm mt-3" style="display:none;">
-        <h5 class="mb-3">Item Details</h5>
-        <p><strong>Name:</strong> <span id="name"></span></p>
-        <p><strong>Code:</strong> <span id="code"></span></p>
-        <p><strong>Quantity:</strong> <span id="qty"></span></p>
-        <p><strong>Unit Price:</strong> <span id="price"></span></p>
-
-        <a id="downloadLink" href="#">
-            <button class="btn btn-warning barcode-btn">Download Barcode (ZIP)</button>
-        </a>
+    <div class="card p-4 shadow-sm mb-4">
+        <h5 class="mb-3">Scanned Items</h5>
+        <div class="table-responsive">
+            <table class="table table-striped" id="dataTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Download</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Items will be appended here -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
 </div>
 
 <script>
 let isScanning = false;
+let scanInputField = document.getElementById("barcodeInput");
+let videoContainer = document.getElementById("videoContainer");
+let dataTableBody = document.querySelector("#dataTable tbody");
+let rowCount = 0;
 
-document.getElementById("scanBtn").addEventListener("click", () => {
+// Open camera on icon click
+document.getElementById("scanIcon").addEventListener("click", () => {
     if (!isScanning) startScanner();
+});
+
+// Manual entry
+document.getElementById("enterBtn").addEventListener("click", () => {
+    let code = scanInputField.value.trim();
+    if(code) checkCode(code);
+});
+
+// Enter key also triggers manual entry
+scanInputField.addEventListener("keypress", (e) => {
+    if(e.key === "Enter"){
+        let code = scanInputField.value.trim();
+        if(code) checkCode(code);
+    }
 });
 
 async function startScanner() {
     isScanning = true;
-    document.getElementById("videoContainer").style.display = "block";
+    videoContainer.style.display = "block";
 
-    // Request camera access
     let stream;
     try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }});
@@ -72,7 +103,6 @@ async function startScanner() {
         return;
     }
 
-    // Get back camera
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d => d.kind === "videoinput");
     let backCam = cams.find(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")) || cams[0];
@@ -80,33 +110,25 @@ async function startScanner() {
     stream.getTracks().forEach(t => t.stop());
     console.log("Selected Camera:", backCam.label);
 
-   Quagga.init({
-    inputStream: {
-        type: "LiveStream",
-        target: document.querySelector("#interactive"),
-        constraints: { deviceId: backCam.deviceId, width: 1280, height: 720 }
-    },
-    decoder: {
-        readers: ["code_128_reader", "ean_reader", "code_39_reader"] // <-- fixed
-    },
-    locate: true,
-    numOfWorkers: navigator.hardwareConcurrency || 4
-}, err => {
-    if (err) { console.error("Quagga init error:", err); return; }
-    Quagga.start();
-});
-
-
-    // Debugging: log processed frames
-    Quagga.onProcessed(result => {
-        // console.log(result); // uncomment for full frame debug
+    Quagga.init({
+        inputStream: {
+            type: "LiveStream",
+            target: document.querySelector("#interactive"),
+            constraints: { deviceId: backCam.deviceId, width: 1280, height: 720 }
+        },
+        decoder: { readers: ["code_128_reader","ean_reader","code_39_reader"] },
+        locate: true,
+        numOfWorkers: navigator.hardwareConcurrency || 4
+    }, err => {
+        if(err){ console.error(err); return; }
+        Quagga.start();
     });
 
     Quagga.onDetected(result => {
-        if (!result.codeResult) return;
+        if(!result.codeResult) return;
         let code = result.codeResult.code;
-        console.log("Detected barcode:", code);
         stopScanner();
+        scanInputField.value = code;
         checkCode(code);
     });
 }
@@ -114,7 +136,7 @@ async function startScanner() {
 function stopScanner() {
     isScanning = false;
     Quagga.stop();
-    document.getElementById("videoContainer").style.display = "none";
+    videoContainer.style.display = "none";
 }
 
 function checkCode(code) {
@@ -124,15 +146,27 @@ function checkCode(code) {
     fetch("/fetch", { method: "POST", body: formData })
         .then(r => r.json())
         .then(data => {
-            if (data.status === "success") {
-                document.getElementById("resultBox").style.display = "block";
-                document.getElementById("name").innerText = data.data.Name;
-                document.getElementById("code").innerText = data.data.Code;
-                document.getElementById("qty").innerText = data.data.Quantity;
-                document.getElementById("price").innerText = data.data.UnitPrice;
-                document.getElementById("downloadLink").href = "/download_single/" + data.data.Code;
+            if(data.status === "success") {
+                rowCount++;
+                const item = data.data;
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${rowCount}</td>
+                    <td>${item.Name}</td>
+                    <td>${item.Code}</td>
+                    <td>${item.Quantity}</td>
+                    <td>${item.UnitPrice}</td>
+                    <td>
+                        <a href="/download_single/${item.Code}">
+                            <button class="btn btn-warning btn-sm">Download</button>
+                        </a>
+                    </td>
+                `;
+                dataTableBody.appendChild(row);
+                scanInputField.value = "";
             } else {
-                alert("❌ Data Not Found");
+                alert("❌ Data Not Found or Invalid Barcode");
+                scanInputField.value = "";
             }
         });
 }
