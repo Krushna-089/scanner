@@ -18,7 +18,8 @@ def generate_barcode(code):
     """Generate a barcode image and save it inside /barcodes"""
     file_path = f"barcodes/{code}.png"
     barcode = Code128(code, writer=ImageWriter())
-    barcode.save(file_path.replace(".png", ""))
+    barcode.save(file_path.replace(".png", ""), {"module_height": 15, "module_width": 0.4, "quiet_zone": 6})
+
     return file_path
 
 
@@ -63,5 +64,5 @@ def download_all():
     return send_file(zip_path, as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(debug=True)
 
