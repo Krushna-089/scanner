@@ -6,6 +6,7 @@ from session import get_session, clear_session
 from json_db import read_json
 import json
 
+
 def handle_message(data):
     try:
         entry = data["entry"][0]
@@ -46,6 +47,28 @@ def handle_message(data):
             session["step"] = "start"
             return
 
+        # Manual quantity input (6-10)
+        if session["step"] == "awaiting_quantity_text":
+            try:
+                qty = int(text)
+                if 6 <= qty <= 10:
+                    session["current_quantity"] = qty
+                    # Ask addons
+                    addons = read_json("addons.json")
+                    if addons:
+                        buttons = [{"id": f"addon_{a['id']}", "title": a['name']} for a in addons[:2]]
+                        buttons.append({"id": "no_addon", "title": "Skip"})
+                        send_reply_buttons(user, "🧀 *Add extras?*", buttons)
+                        session["step"] = "asking_addons"
+                    else:
+                        ask_spice(user, session, session["current_item"], qty)
+                else:
+                    send_message(user, "Please enter a number between 6 and 10.")
+                return
+            except ValueError:
+                send_message(user, "Invalid number. Please enter a number between 6 and 10.")
+                return
+
         # Awaiting name during checkout
         if session["step"] == "awaiting_name":
             session["name"] = text
@@ -65,7 +88,7 @@ def handle_message(data):
 
 *Order ID:* {order['order_number']}
 *Name:* {order['name']}
-*Total:* ₹{order['total']} (or $ depending on your currency)
+*Total:* ${order['total']}
 
 📦 *Status:* {order['status'].upper()}
 
@@ -95,7 +118,7 @@ Thank you for ordering from FoodieHub! 🍕"""
                 # Format cart items
                 cart_text = ""
                 for item in order["cart"]:
-                    cart_text += f"• {item['name']} x{item['quantity']} - ₹{item['price']*item['quantity']}\n"
+                    cart_text += f"• {item['name']} x{item['quantity']} - ${item['price']*item['quantity']}\n"
                     if item.get("addons"):
                         addon_names = ", ".join([a["name"] for a in item["addons"]])
                         cart_text += f"  *Add-ons:* {addon_names}\n"
@@ -111,7 +134,7 @@ Thank you for ordering from FoodieHub! 🍕"""
 
 *Items:*
 {cart_text}
-*Total:* ₹{order['total']}
+*Total:* ${order['total']}
 
 Thank you for choosing FoodieHub!"""
             else:
@@ -230,16 +253,6 @@ Type 'hi' anytime to restart."""
                 session["step"] = "asking_addons"
             else:
                 ask_spice(user, session, session["current_item"], session["current_quantity"])
-        return
-
-    # ----- Manual quantity input (6-10) -----
-    if session["step"] == "awaiting_quantity_text":
-        try:
-            qty = int(payload)  # payload is the text user typed (but this is interactive, so we need text handling)
-            # Actually this will be handled in text branch, but we can't get text here. Better to handle in text.
-        except:
-            pass
-        # We'll handle quantity text in the main text branch
         return
 
     # ----- Add-on selection -----
