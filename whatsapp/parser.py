@@ -7,6 +7,7 @@ from json_db import read_json
 import json
 from debug_logger import log
 
+
 def handle_message(data):
     try:
         entry = data["entry"][0]
