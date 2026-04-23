@@ -7,26 +7,6 @@ from json_db import read_json
 import json
 
 
-# Add this import at the top
-import traceback
-
-# In handle_interactive, add debug print for see_menu:
-if payload == "see_menu":
-    print("DEBUG: see_menu clicked")  # Add this
-    # Show categories as list
-    categories = get_menu()
-    print(f"DEBUG: Categories loaded: {categories}")  # Add this
-    sections = [{
-        "title": "📂 Categories",
-        "rows": [
-            {"id": f"cat_{c['id']}", "title": c["name"], "description": f"View {c['name']} items"}
-            for c in categories
-        ]
-    }]
-    send_list_message(user, "🍽️ *Our Menu*", "Choose category", sections)
-    session["step"] = "selecting_category"
-    return
-
 
 def handle_message(data):
     try:
