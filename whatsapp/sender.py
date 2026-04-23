@@ -1,5 +1,7 @@
 # whatsapp/sender.py
 import requests
+import json
+from debug_logger import log
 
 TOKEN = "EAAODBhndGMkBRYLNk2dZCBKHZAiYWTybqiTeGUBdeyBCdzpuS6x5DwYqzIMbg8XjewGUMiH2FylO2d2ZBnZCLrOjPz5laG16ZBAaLxjJIZAaAU0H9ABiFmgZAzCR7mAIqBptElVPQuMYiom3UX7saCLIHIGlO1ij4zzRabrQYVXwgWcoKksn2SV4gklnTqnXZAm2KK1gAxxv936pYboc6oNxVZB4G1MvMqfDhLlK9wzcjZB8RIBcXEiR4fSsvSN2iDcGFktXOAxr6DvNcKDjkGlEY2m89nlLATDRC0kJldHwZDZD"
 PHONE_ID = "1087735387757925"
