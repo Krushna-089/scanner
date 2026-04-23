@@ -55,11 +55,23 @@ def send_buttons(to):
     requests.post(url, headers=headers, json=data)
 
 
+VERIFY_TOKEN = "12345"
+
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
-    if request.method == "GET":
-        return request.args.get("hub.challenge")
 
+    # VERIFY (Meta handshake)
+    if request.method == "GET":
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
+
+        if mode == "subscribe" and token == VERIFY_TOKEN:
+            return challenge, 200
+
+        return "Verification failed", 403
+
+    # RECEIVE MESSAGES
     if request.method == "POST":
         data = request.json
 
@@ -83,11 +95,10 @@ def webhook():
                 elif btn == "help":
                     send_message(user, "Contact support 📞")
 
-        except:
-            pass
+        except Exception as e:
+            print(e)
 
         return "OK", 200
-
 
 if __name__ == "__main__":
     app.run(port=5000)
