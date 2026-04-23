@@ -60,7 +60,6 @@ VERIFY_TOKEN = "12345"
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
 
-    # VERIFY (Meta handshake)
     if request.method == "GET":
         mode = request.args.get("hub.mode")
         token = request.args.get("hub.verify_token")
@@ -69,36 +68,39 @@ def webhook():
         if mode == "subscribe" and token == VERIFY_TOKEN:
             return challenge, 200
 
-        return "Verification failed", 403
+        return "Error", 403
 
-    # RECEIVE MESSAGES
     if request.method == "POST":
         data = request.json
 
         try:
-            msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
-            user = msg["from"]
+            entry = data["entry"][0]["changes"][0]["value"]
 
-            # text message
-            if msg["type"] == "text":
-                text = msg["text"]["body"].lower()
+            if "messages" in entry:
+                msg = entry["messages"][0]
+                user = msg["from"]
 
-                if text == "hi":
-                    send_buttons(user)
+                # TEXT MESSAGE
+                if msg["type"] == "text":
+                    text = msg["text"]["body"].lower()
 
-            # button click
-            if msg["type"] == "interactive":
-                btn = msg["interactive"]["button_reply"]["id"]
+                    if text == "hi":
+                        send_buttons(user)
+                    else:
+                        send_message(user, "Type 'hi' to start 😊")
 
-                if btn == "menu":
-                    send_message(user, "Here is our menu 🍽️")
-                elif btn == "help":
-                    send_message(user, "Contact support 📞")
+                # BUTTON CLICK
+                elif msg["type"] == "interactive":
+                    btn = msg["interactive"]["button_reply"]["id"]
+
+                    if btn == "menu":
+                        send_message(user, "🍽️ Menu:\n1. Pizza\n2. Burger\n3. Drinks")
+                    elif btn == "help":
+                        send_message(user, "📞 Support: Call +91 XXXXX XXXXX")
 
         except Exception as e:
-            print(e)
+            print("Error:", e)
 
         return "OK", 200
-
 if __name__ == "__main__":
     app.run(port=5000)
