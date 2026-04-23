@@ -21,12 +21,13 @@ def send_message(to, text):
     log(f"Sending text message to {to}", "DEBUG")
     response = requests.post(url, headers=headers, json=data)
     log(f"Response status: {response.status_code}", "DEBUG")
+    if response.status_code != 200:
+        log(f"Error: {response.text}", "ERROR")
     return response.json()
 
 def send_list_message(to, body_text, button_text, sections):
     """
-    Send a WhatsApp Interactive List Message
-    sections: [{"title": "Section Title", "rows": [{"id": "id", "title": "Option", "description": "desc"}]}]
+    Send a WhatsApp Interactive List Message (NO markdown allowed in header/body)
     """
     url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
     headers = {
@@ -34,30 +35,20 @@ def send_list_message(to, body_text, button_text, sections):
         "Content-Type": "application/json"
     }
     
-    # Ensure button_text is not too long (max 20 chars)
+    # Remove markdown characters (*, _, ~, etc.) from body_text
+    clean_body = re.sub(r'[*_~`]', '', body_text)
+    clean_body = clean_body.replace('\n', ' ').strip()
+    
     button_text = button_text[:20]
+    header_text = clean_body[:60]
+    body_text_short = clean_body[:60]
     
-    # Ensure body_text is not too long (max 60 chars for header, 60 for body)
-    header_text = body_text[:60]
-    body_text_short = body_text[:60]
-    
-    # Build the interactive list payload
     interactive_payload = {
         "type": "list",
-        "header": {
-            "type": "text",
-            "text": header_text
-        },
-        "body": {
-            "text": body_text_short
-        },
-        "footer": {
-            "text": "Tap to see options"
-        },
-        "action": {
-            "button": button_text,
-            "sections": sections
-        }
+        "header": {"type": "text", "text": header_text},
+        "body": {"text": body_text_short},
+        "footer": {"text": "Tap to see options"},
+        "action": {"button": button_text, "sections": sections}
     }
     
     data = {
@@ -68,15 +59,13 @@ def send_list_message(to, body_text, button_text, sections):
     }
     
     log(f"Sending list message to {to}", "DEBUG")
-    log(f"List payload: {json.dumps(data, indent=2)[:500]}", "DEBUG")
-    
     response = requests.post(url, headers=headers, json=data)
     log(f"List message response: {response.status_code}", "DEBUG")
     
     if response.status_code != 200:
         log(f"ERROR: {response.text}", "ERROR")
-        # Fallback to text message
-        fallback = f"{body_text}\n\n"
+        # Fallback to plain text (without markdown)
+        fallback = f"{clean_body}\n\n"
         for section in sections:
             fallback += f"\n{section['title']}:\n"
             for row in section['rows']:
