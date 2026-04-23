@@ -162,26 +162,34 @@ def handle_interactive(user, session, payload):
         categories = get_menu()
         log(f"Categories loaded: {categories}", "DEBUG")
         
-        # Check if categories exist
         if not categories:
             log("No categories found!", "ERROR")
             send_message(user, "Menu is currently empty. Please try again later.")
             return
         
+        # Create sections for list message
+        rows = []
+        for c in categories:
+            rows.append({
+                "id": f"cat_{c['id']}",
+                "title": c["name"],
+                "description": f"View {c['name']} items"
+            })
+        
         sections = [{
-            "title": "📂 Categories",
-            "rows": [
-                {"id": f"cat_{c['id']}", "title": c["name"], "description": f"View {c['name']} items"}
-                for c in categories
-            ]
+            "title": "📋 MENU CATEGORIES",
+            "rows": rows
         }]
         
-        log(f"Sending list message with sections: {sections}", "DEBUG")
-        send_list_message(user, "🍽️ *Our Menu*", "Choose category", sections)
-        log("List message sent", "INFO")
+        # Send as interactive list message
+        send_list_message(
+            to=user,
+            body_text="🍽️ *Welcome to FoodieHub!*\nPlease select a category:",
+            button_text="View Menu",
+            sections=sections
+        )
         session["step"] = "selecting_category"
         return
-
     if payload == "order_status":
         send_message(user, "🔍 Please enter your *Order ID* (e.g., ORD5):")
         session["step"] = "awaiting_order_id"
