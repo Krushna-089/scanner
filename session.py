@@ -2,14 +2,16 @@
 from collections import defaultdict
 
 user_sessions = defaultdict(lambda: {
-    "step": "start",           # start, menu, category_selected, adding_item, addons, spice, checkout
+    "step": "start",          # start, menu, selecting_category, selecting_item, asking_quantity, asking_addons, asking_spice, checkout, awaiting_name, awaiting_phone, order_status
     "cart": [],
     "current_category_id": None,
     "current_item": None,
+    "current_quantity": 1,
     "current_addons": [],
     "current_spice": None,
     "name": None,
-    "phone": None
+    "phone": None,
+    "last_order_id": None      # store last order ID for quick status
 })
 
 def get_session(user_id):
@@ -21,8 +23,10 @@ def clear_session(user_id):
         "cart": [],
         "current_category_id": None,
         "current_item": None,
+        "current_quantity": 1,
         "current_addons": [],
         "current_spice": None,
         "name": None,
-        "phone": None
+        "phone": None,
+        "last_order_id": None
     }
