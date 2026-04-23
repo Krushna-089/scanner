@@ -5,7 +5,7 @@ from services.order_service import create_order, get_order_by_id
 from session import get_session, clear_session
 from json_db import read_json
 import json
-
+from debug_logger import log
 
 
 def handle_message(data):
@@ -17,7 +17,7 @@ def handle_message(data):
         user = msg["from"]
         session = get_session(user)
     except Exception as e:
-        print("Error parsing webhook:", e)
+        log(f"Error parsing webhook: {e}", "ERROR")
         return
 
     # ----- Interactive replies (buttons / lists) -----
@@ -158,8 +158,9 @@ Thank you for choosing FoodieHub!"""
 def handle_interactive(user, session, payload):
     # ----- Main menu buttons -----
     if payload == "see_menu":
-        # Show categories as list
+        log("User clicked See Menu", "INFO")
         categories = get_menu()
+        log(f"Categories loaded: {categories}", "DEBUG")
         sections = [{
             "title": "📂 Categories",
             "rows": [
