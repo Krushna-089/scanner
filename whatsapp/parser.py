@@ -13,7 +13,6 @@ def handle_message(data):
         changes = entry["changes"][0]
         value = changes["value"]
         
-        # If no messages (e.g., status update), ignore
         if "messages" not in value:
             log("No messages field (status update)", "DEBUG")
             return
@@ -25,7 +24,6 @@ def handle_message(data):
         log(f"Error parsing webhook: {e}", "ERROR")
         return
 
-    # ----- Interactive replies (buttons / lists) -----
     if msg["type"] == "interactive":
         interactive = msg["interactive"]
         if interactive["type"] == "list_reply":
@@ -36,12 +34,10 @@ def handle_message(data):
             handle_interactive(user, session, payload)
         return
 
-    # ----- Plain text -----
     if msg["type"] == "text":
         text = msg["text"]["body"].strip().lower()
 
-        # Initial greeting: show three main buttons
-        if text == "hi" or text == "hello":
+        if text in ["hi", "hello"]:
             send_reply_buttons(user, 
                 "🍽️ *Welcome to FoodieHub!*\n\nChoose an option below:",
                 [
@@ -53,13 +49,11 @@ def handle_message(data):
             session["step"] = "start"
             return
 
-        # Manual quantity input (6-10)
         if session["step"] == "awaiting_quantity_text":
             try:
                 qty = int(text)
                 if 6 <= qty <= 10:
                     session["current_quantity"] = qty
-                    # Ask addons
                     addons = read_json("addons.json")
                     if addons:
                         buttons = [{"id": f"addon_{a['id']}", "title": a['name']} for a in addons[:2]]
@@ -75,21 +69,17 @@ def handle_message(data):
                 send_message(user, "Invalid number. Please enter a number between 6 and 10.")
                 return
 
-        # Awaiting name during checkout
         if session["step"] == "awaiting_name":
             session["name"] = text
             session["step"] = "awaiting_phone"
             send_message(user, "📞 *Great!* Now please send your phone number (e.g., +919876543210):")
             return
 
-        # Awaiting phone number
         if session["step"] == "awaiting_phone":
             session["phone"] = text
-            # Create order
             total = calculate_total(session["cart"])
             order = create_order(session["name"], session["phone"], session["cart"], total)
             session["last_order_id"] = order["order_number"]
-            # Professional order confirmation
             confirm_msg = f"""✅ *Order Placed Successfully!*
 
 *Order ID:* {order['order_number']}
@@ -105,23 +95,15 @@ Thank you for ordering from FoodieHub! 🍕"""
             clear_session(user)
             return
 
-        # Awaiting order ID for status check
         if session["step"] == "awaiting_order_id":
             order_id = text.strip().upper()
             order = get_order_by_id(order_id)
             if order:
-                # Build detailed status message
                 status_emoji = {
-                    "pending": "⏳",
-                    "received": "✅",
-                    "rejected": "❌",
-                    "preparing": "👨‍🍳",
-                    "cooked": "🍳",
-                    "served": "🍽️",
-                    "completed": "🏁"
+                    "pending": "⏳", "received": "✅", "rejected": "❌",
+                    "preparing": "👨‍🍳", "cooked": "🍳", "served": "🍽️", "completed": "🏁"
                 }.get(order["status"], "📌")
                 
-                # Format cart items
                 cart_text = ""
                 for item in order["cart"]:
                     cart_text += f"• {item['name']} x{item['quantity']} - ${item['price']*item['quantity']}\n"
@@ -149,7 +131,6 @@ Thank you for choosing FoodieHub!"""
             session["step"] = "start"
             return
 
-        # If none of the above, show help
         send_reply_buttons(user, 
             "I didn't understand that. Please choose an option:",
             [
@@ -161,12 +142,9 @@ Thank you for choosing FoodieHub!"""
         return
 
 def handle_interactive(user, session, payload):
-    # ----- Main menu buttons -----
     if payload == "see_menu":
         log("User clicked See Menu", "INFO")
         categories = get_menu()
-        log(f"Categories loaded: {categories}", "DEBUG")
-        
         if not categories:
             send_message(user, "Menu is currently empty. Please try again later.")
             return
@@ -175,21 +153,12 @@ def handle_interactive(user, session, payload):
         for c in categories:
             rows.append({
                 "id": f"cat_{c['id']}",
-                "title": c["name"],
+                "title": c["name"][:24],  # ensure max 24 chars
                 "description": f"View {c['name']} items"
             })
         
-        sections = [{
-            "title": "📋 MENU CATEGORIES",
-            "rows": rows
-        }]
-        
-        send_list_message(
-            to=user,
-            body_text="Welcome to FoodieHub! Please select a category:",
-            button_text="View Menu",
-            sections=sections
-        )
+        sections = [{"title": "📋 MENU CATEGORIES", "rows": rows}]
+        send_list_message(user, "Welcome to FoodieHub! Please select a category:", "View Menu", sections)
         session["step"] = "selecting_category"
         return
 
@@ -218,7 +187,6 @@ Type 'hi' anytime to restart."""
         send_message(user, help_msg)
         return
 
-    # ----- Category selection (from list) -----
     if payload.startswith("cat_"):
         cat_id = int(payload.split("_")[1])
         session["current_category_id"] = cat_id
@@ -229,47 +197,36 @@ Type 'hi' anytime to restart."""
         
         rows = []
         for i in items:
+            # Create a short title (max 24 chars)
+            title = f"{i['name']} ${i['price']}"
+            if len(title) > 24:
+                # Truncate name part
+                name_part = i['name'][:21]  # leave room for " $xx"
+                title = f"{name_part} ${i['price']}"
             rows.append({
                 "id": f"item_{i['id']}",
-                "title": f"{i['name']} - ${i['price']}",
+                "title": title[:24],
                 "description": "Tap to order"
             })
         
-        sections = [{
-            "title": "🍽️ CHOOSE AN ITEM",
-            "rows": rows
-        }]
-        
-        send_list_message(
-            to=user,
-            body_text="Select an item to add to your cart:",
-            button_text="View Items",
-            sections=sections
-        )
+        sections = [{"title": "🍽️ CHOOSE AN ITEM", "rows": rows}]
+        send_list_message(user, "Select an item to add to your cart:", "View Items", sections)
         session["step"] = "selecting_item"
         return
 
-    # ----- Item selection -----
     if payload.startswith("item_"):
         item_id = int(payload.split("_")[1])
         items = get_items(session["current_category_id"])
         item = next((i for i in items if i["id"] == item_id), None)
         if item:
             session["current_item"] = item
-            # Ask quantity using reply buttons (1-10)
             quantity_buttons = [
                 {"id": f"qty_{i}", "title": str(i)} for i in [1,2,3,4,5]
-            ] + [
-                {"id": "qty_more", "title": "6-10"}
-            ]
-            send_reply_buttons(user, 
-                f"🔢 *How many {item['name']}?* (1-10)", 
-                quantity_buttons
-            )
+            ] + [{"id": "qty_more", "title": "6-10"}]
+            send_reply_buttons(user, f"🔢 *How many {item['name']}?* (1-10)", quantity_buttons)
             session["step"] = "asking_quantity"
         return
 
-    # ----- Quantity selection -----
     if payload.startswith("qty_"):
         if payload == "qty_more":
             send_message(user, "Please type a number between 6 and 10:")
@@ -278,7 +235,6 @@ Type 'hi' anytime to restart."""
         else:
             qty = int(payload.split("_")[1])
             session["current_quantity"] = qty
-            # Ask for add-ons
             addons = read_json("addons.json")
             if addons:
                 buttons = [{"id": f"addon_{a['id']}", "title": a['name']} for a in addons[:2]]
@@ -289,7 +245,6 @@ Type 'hi' anytime to restart."""
                 ask_spice(user, session, session["current_item"], session["current_quantity"])
         return
 
-    # ----- Add-on selection -----
     if payload.startswith("addon_"):
         addon_id = int(payload.split("_")[1])
         addons = read_json("addons.json")
@@ -303,14 +258,12 @@ Type 'hi' anytime to restart."""
         ask_spice(user, session, session["current_item"], session["current_quantity"])
         return
 
-    # ----- Spice selection -----
     if payload.startswith("spice_"):
         spice_id = int(payload.split("_")[1])
         spices = read_json("spice_levels.json")
         spice = next((s for s in spices if s["id"] == spice_id), None)
         if spice:
             session["current_spice"] = spice
-            # Add item to cart
             cart_item = {
                 "item_id": session["current_item"]["id"],
                 "name": session["current_item"]["name"],
@@ -320,12 +273,10 @@ Type 'hi' anytime to restart."""
                 "spice": spice["name"]
             }
             session["cart"].append(cart_item)
-            # Reset temp fields
             session["current_addons"] = []
             session["current_spice"] = None
             session["current_item"] = None
             session["current_quantity"] = 1
-            # Show cart summary and next actions
             cart_summary = format_cart_summary(session["cart"])
             send_reply_buttons(user, 
                 f"✅ *Item added to cart!*\n\n{cart_summary}\n\nWhat would you like to do?",
@@ -338,10 +289,9 @@ Type 'hi' anytime to restart."""
             session["step"] = "post_add"
         return
 
-    # ----- Post-add actions -----
     if payload == "more_items":
         categories = get_menu()
-        rows = [{"id": f"cat_{c['id']}", "title": c["name"], "description": ""} for c in categories]
+        rows = [{"id": f"cat_{c['id']}", "title": c["name"][:24], "description": ""} for c in categories]
         sections = [{"title": "📂 CATEGORIES", "rows": rows}]
         send_list_message(user, "Select a category:", "Menu", sections)
         session["step"] = "selecting_category"
@@ -355,10 +305,7 @@ Type 'hi' anytime to restart."""
         total = calculate_total(session["cart"])
         send_reply_buttons(user, 
             f"🛒 *Your Cart*\n\n{cart_summary}\n\n*Total:* ${total}\n\nWhat next?",
-            [
-                {"id": "more_items", "title": "➕ Add More"},
-                {"id": "checkout", "title": "💳 Checkout"}
-            ]
+            [{"id": "more_items", "title": "➕ Add More"}, {"id": "checkout", "title": "💳 Checkout"}]
         )
         return
 
@@ -371,7 +318,6 @@ Type 'hi' anytime to restart."""
         session["step"] = "awaiting_name"
         return
 
-    # ----- Fallback -----
     send_reply_buttons(user, "Please use the buttons below:", [
         {"id": "see_menu", "title": "📋 See Menu"},
         {"id": "order_status", "title": "📦 Order Status"},
@@ -385,7 +331,6 @@ def ask_spice(user, session, item, quantity):
         send_reply_buttons(user, f"🌶️ *Spice level for {item['name']}*", buttons)
         session["step"] = "asking_spice"
     else:
-        # No spice, add directly
         cart_item = {
             "item_id": item["id"],
             "name": item["name"],
@@ -398,11 +343,7 @@ def ask_spice(user, session, item, quantity):
         cart_summary = format_cart_summary(session["cart"])
         send_reply_buttons(user, 
             f"✅ *Item added!*\n\n{cart_summary}\n\nWhat next?",
-            [
-                {"id": "more_items", "title": "➕ Add More"},
-                {"id": "view_cart", "title": "🛒 View Cart"},
-                {"id": "checkout", "title": "💳 Checkout"}
-            ]
+            [{"id": "more_items", "title": "➕ Add More"}, {"id": "view_cart", "title": "🛒 View Cart"}, {"id": "checkout", "title": "💳 Checkout"}]
         )
         session["step"] = "post_add"
 
