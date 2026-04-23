@@ -1,0 +1,6 @@
+[
+  {"id": 1, "category_id": 1, "name": "Spring Rolls", "price": 5.99},
+  {"id": 2, "category_id": 1, "name": "Garlic Bread", "price": 3.99},
+  {"id": 3, "category_id": 2, "name": "Grilled Chicken", "price": 14.99},
+  {"id": 4, "category_id": 2, "name": "Paneer Butter Masala", "price": 11.99}
+]
