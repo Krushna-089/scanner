@@ -1,70 +1,93 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import json, os, zipfile
-from barcode import Code128
-from barcode.writer import ImageWriter
+from flask import Flask, request
+import requests
 
 app = Flask(__name__)
 
-# Load items
-with open("data.json") as f:
-    items = json.load(f)
-
-# Ensure folders exist
-os.makedirs("barcodes", exist_ok=True)
-os.makedirs("zip_files", exist_ok=True)
+TOKEN = "EAAODBhndGMkBRShdoFTJsYjrjLtfhfnfvMS8SuYLN8eKzTAp9GMH9JEKSZC6sstwbVEHiEPouO6puocD7JltRTDiOkZCtT0lTaoQusIdGacm3tYWNsjyMLtfeCEXW3rcTf57fKMJ5oRgHlPa4Lq5VDG3OE6e71FZA4Ogpp1pCJolfIyk0OIzAAgYQ8vAI8WhdSJYfM5RrugVkBf8bOW6v5hVzOFw0n86HG7FxoWBKsrhDZBMVFcfxWRPPLgfxZBdg9S2JUOGKgZAIP7eaymFRrLECrVsD0QeYRBWkcQQZDZD"
+PHONE_ID = "1087735387757925"
 
 
-def generate_barcode(code):
-    """Generate a high-quality barcode for camera scanning"""
-    file_path = f"barcodes/{code}.png"
-    # High quality settings
-    barcode = Code128(code, writer=ImageWriter())
-    barcode.save(
-        file_path.replace(".png", ""),
-        options={
-            "module_height": 20,  # taller bars
-            "module_width": 0.5,  # thicker bars
-            "quiet_zone": 6,
-            "font_size": 14,
-            "text_distance": 1,
-            "write_text": False  # optional, hides human-readable text
+# send message
+def send_message(to, text):
+    url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
+
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "text": {"body": text}
+    }
+
+    requests.post(url, headers=headers, json=data)
+
+
+# send buttons
+def send_buttons(to):
+    url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
+
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {
+                "text": "Welcome! Choose option:"
+            },
+            "action": {
+                "buttons": [
+                    {"type": "reply", "reply": {"id": "menu", "title": "Menu"}},
+                    {"type": "reply", "reply": {"id": "help", "title": "Help"}}
+                ]
+            }
         }
-    )
-    return file_path
+    }
+
+    requests.post(url, headers=headers, json=data)
 
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+@app.route("/webhook", methods=["GET", "POST"])
+def webhook():
+    if request.method == "GET":
+        return request.args.get("hub.challenge")
 
+    if request.method == "POST":
+        data = request.json
 
-@app.route("/fetch", methods=["POST"])
-def fetch():
-    entered_code = request.form.get("code")
-    for item in items:
-        if item["Code"] == entered_code:
-            return jsonify({"status": "success", "data": item})
-    return jsonify({"status": "error", "message": "Code not found"})
+        try:
+            msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
+            user = msg["from"]
 
+            # text message
+            if msg["type"] == "text":
+                text = msg["text"]["body"].lower()
 
-@app.route("/download_single/<code>")
-def download_single(code):
-    barcode_path = generate_barcode(code)
-    zip_path = f"zip_files/{code}.zip"
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        zipf.write(barcode_path, os.path.basename(barcode_path))
-    return send_file(zip_path, as_attachment=True)
+                if text == "hi":
+                    send_buttons(user)
 
+            # button click
+            if msg["type"] == "interactive":
+                btn = msg["interactive"]["button_reply"]["id"]
 
-@app.route("/download_all")
-def download_all():
-    zip_path = "zip_files/all_barcodes.zip"
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        for item in items:
-            path = generate_barcode(item["Code"])
-            zipf.write(path, os.path.basename(path))
-    return send_file(zip_path, as_attachment=True)
+                if btn == "menu":
+                    send_message(user, "Here is our menu 🍽️")
+                elif btn == "help":
+                    send_message(user, "Contact support 📞")
+
+        except:
+            pass
+
+        return "OK", 200
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(port=5000)
