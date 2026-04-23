@@ -184,7 +184,6 @@ def handle_interactive(user, session, payload):
             "rows": rows
         }]
         
-        # No markdown in body text
         send_list_message(
             to=user,
             body_text="Welcome to FoodieHub! Please select a category:",
