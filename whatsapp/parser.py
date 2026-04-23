@@ -161,6 +161,13 @@ def handle_interactive(user, session, payload):
         log("User clicked See Menu", "INFO")
         categories = get_menu()
         log(f"Categories loaded: {categories}", "DEBUG")
+        
+        # Check if categories exist
+        if not categories:
+            log("No categories found!", "ERROR")
+            send_message(user, "Menu is currently empty. Please try again later.")
+            return
+        
         sections = [{
             "title": "📂 Categories",
             "rows": [
@@ -168,7 +175,10 @@ def handle_interactive(user, session, payload):
                 for c in categories
             ]
         }]
+        
+        log(f"Sending list message with sections: {sections}", "DEBUG")
         send_list_message(user, "🍽️ *Our Menu*", "Choose category", sections)
+        log("List message sent", "INFO")
         session["step"] = "selecting_category"
         return
 
