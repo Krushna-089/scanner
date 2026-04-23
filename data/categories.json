@@ -1,6 +1,6 @@
 [
-  {"id": 1, "name": "Starters"},
-  {"id": 2, "name": "Main Course"},
-  {"id": 3, "name": "Drinks"},
-  {"id": 4, "name": "Desserts"}
+  {"category_id": 1, "name": "Starters"},
+  {"category_id": 2, "name": "Main Course"},
+  {"category_id": 3, "name": "Drinks"},
+  {"category_id": 4, "name": "Desserts"}
 ]
