@@ -1,8 +1,10 @@
+
 # whatsapp/sender.py
 import requests
 import json
 from debug_logger import log
-import re
+import re  # <-- REQUIRED
+
 
 TOKEN = "EAAODBhndGMkBRYUueLebktA0kRCvCIFBEaVNhZCZAlzZBrAerBEEo3ZBwm8oT33lkLv3uB6R2y4z8YXiZBGVZCvFxvoT9gbmXhnyUsqV66YZBmBGSXYItseZAyUN8u1HCtA5LdfZBHivCCm4ioZAJw0ypllTqRcNeQDZBEae6goqm3X5a9W3oKUVtPpuue8zkYpCVvMeTZAFeGWTmD1JcNmuZBqrPP75pcMoFhT6eCIB3ZCTlSe8PkmSBZB8uADJnKpf9sfeJ0UJQIMlWCPbnyDI4rB7AL5GqupyP4xglWMESpIlwZDZD"
 PHONE_ID = "1087735387757925"
@@ -18,12 +20,11 @@ def send_message(to, text):
         "to": to,
         "text": {"body": text}
     }
-    
-    log(f"Sending text message to {to}", "DEBUG")
+    log(f"Sending text to {to}", "DEBUG")
     response = requests.post(url, headers=headers, json=data)
-    log(f"Response status: {response.status_code}", "DEBUG")
+    log(f"Text response: {response.status_code}", "DEBUG")
     if response.status_code != 200:
-        log(f"Error: {response.text}", "ERROR")
+        log(f"Text error: {response.text}", "ERROR")
     return response.json()
 
 def send_list_message(to, body_text, button_text, sections):
@@ -36,7 +37,7 @@ def send_list_message(to, body_text, button_text, sections):
         "Content-Type": "application/json"
     }
     
-    # Remove markdown characters (*, _, ~, etc.) from body_text
+    # Remove all markdown characters from body_text
     clean_body = re.sub(r'[*_~`]', '', body_text)
     clean_body = clean_body.replace('\n', ' ').strip()
     
@@ -60,25 +61,24 @@ def send_list_message(to, body_text, button_text, sections):
     }
     
     log(f"Sending list message to {to}", "DEBUG")
+    log(f"List payload: {json.dumps(data, indent=2)[:500]}", "DEBUG")
+    
     response = requests.post(url, headers=headers, json=data)
     log(f"List message response: {response.status_code}", "DEBUG")
     
     if response.status_code != 200:
         log(f"ERROR: {response.text}", "ERROR")
-        # Fallback to plain text (without markdown)
-        fallback = f"{clean_body}\n\n"
-        for section in sections:
-            fallback += f"\n{section['title']}:\n"
-            for row in section['rows']:
-                fallback += f"• {row['title']}\n"
-        send_message(to, fallback)
+        # DO NOT fallback to plain text - we want to see the error
+        # Instead, send a debug message to the user
+        send_message(to, "⚠️ Sorry, the menu format temporarily failed. Please try again or type 'hi' to restart.")
+    else:
+        log("List message sent successfully", "INFO")
     
     return response.json()
 
 def send_reply_buttons(to, text, buttons):
     """
     Send WhatsApp Interactive Reply Buttons (max 3 buttons)
-    buttons: [{"id": "payload", "title": "Button Text"}]
     """
     url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
     headers = {
@@ -86,14 +86,13 @@ def send_reply_buttons(to, text, buttons):
         "Content-Type": "application/json"
     }
     
-    # Format buttons for WhatsApp API
     whatsapp_buttons = []
     for b in buttons[:3]:
         whatsapp_buttons.append({
             "type": "reply",
             "reply": {
                 "id": b["id"],
-                "title": b["title"][:20]  # Max 20 chars
+                "title": b["title"][:20]
             }
         })
     
@@ -103,12 +102,8 @@ def send_reply_buttons(to, text, buttons):
         "type": "interactive",
         "interactive": {
             "type": "button",
-            "body": {
-                "text": text[:200]  # Max 200 chars
-            },
-            "action": {
-                "buttons": whatsapp_buttons
-            }
+            "body": {"text": text[:200]},
+            "action": {"buttons": whatsapp_buttons}
         }
     }
     
@@ -118,10 +113,6 @@ def send_reply_buttons(to, text, buttons):
     
     if response.status_code != 200:
         log(f"ERROR: {response.text}", "ERROR")
-        # Fallback to text
-        fallback = f"{text}\n\n"
-        for b in buttons:
-            fallback += f"• {b['title']}\n"
-        send_message(to, fallback)
+        send_message(to, "⚠️ Button menu failed. Please type 'hi' to restart.")
     
     return response.json()
