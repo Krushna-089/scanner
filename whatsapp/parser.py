@@ -7,12 +7,17 @@ from json_db import read_json
 import json
 from debug_logger import log
 
-
 def handle_message(data):
     try:
         entry = data["entry"][0]
         changes = entry["changes"][0]
         value = changes["value"]
+        
+        # If no messages (e.g., status update), ignore
+        if "messages" not in value:
+            log("No messages field (status update)", "DEBUG")
+            return
+        
         msg = value["messages"][0]
         user = msg["from"]
         session = get_session(user)
@@ -163,11 +168,9 @@ def handle_interactive(user, session, payload):
         log(f"Categories loaded: {categories}", "DEBUG")
         
         if not categories:
-            log("No categories found!", "ERROR")
             send_message(user, "Menu is currently empty. Please try again later.")
             return
         
-        # Create sections for list message
         rows = []
         for c in categories:
             rows.append({
@@ -181,15 +184,16 @@ def handle_interactive(user, session, payload):
             "rows": rows
         }]
         
-        # Send as interactive list message
+        # No markdown in body text
         send_list_message(
             to=user,
-            body_text="🍽️ *Welcome to FoodieHub!*\nPlease select a category:",
+            body_text="Welcome to FoodieHub! Please select a category:",
             button_text="View Menu",
             sections=sections
         )
         session["step"] = "selecting_category"
         return
+
     if payload == "order_status":
         send_message(user, "🔍 Please enter your *Order ID* (e.g., ORD5):")
         session["step"] = "awaiting_order_id"
@@ -223,15 +227,26 @@ Type 'hi' anytime to restart."""
         if not items:
             send_message(user, "No items in this category. Please go back.")
             return
-        # Build list of items
+        
+        rows = []
+        for i in items:
+            rows.append({
+                "id": f"item_{i['id']}",
+                "title": f"{i['name']} - ${i['price']}",
+                "description": "Tap to order"
+            })
+        
         sections = [{
-            "title": "🍽️ Choose an item",
-            "rows": [
-                {"id": f"item_{i['id']}", "title": f"{i['name']} - ${i['price']}", "description": "Tap to order"}
-                for i in items
-            ]
+            "title": "🍽️ CHOOSE AN ITEM",
+            "rows": rows
         }]
-        send_list_message(user, "📋 *Select your item*", "View items", sections)
+        
+        send_list_message(
+            to=user,
+            body_text="Select an item to add to your cart:",
+            button_text="View Items",
+            sections=sections
+        )
         session["step"] = "selecting_item"
         return
 
@@ -326,13 +341,10 @@ Type 'hi' anytime to restart."""
 
     # ----- Post-add actions -----
     if payload == "more_items":
-        # Show categories again
         categories = get_menu()
-        sections = [{
-            "title": "📂 Categories",
-            "rows": [{"id": f"cat_{c['id']}", "title": c["name"], "description": ""} for c in categories]
-        }]
-        send_list_message(user, "🍽️ *Menu*", "Choose category", sections)
+        rows = [{"id": f"cat_{c['id']}", "title": c["name"], "description": ""} for c in categories]
+        sections = [{"title": "📂 CATEGORIES", "rows": rows}]
+        send_list_message(user, "Select a category:", "Menu", sections)
         session["step"] = "selecting_category"
         return
 
