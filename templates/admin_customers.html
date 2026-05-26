@@ -1,0 +1,32 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Customers{% endblock %}
+
+{% block content %}
+<h1>Customer Management</h1>
+
+<table class="data-table full-width">
+    <thead>
+        <tr>
+            <th>Phone</th>
+            <th>Name</th>
+            <th>Total Orders</th>
+            <th>Total Spent</th>
+            <th>Last Order</th>
+            <th>Joined</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for customer in customers %}
+        <tr>
+            <td>{{ customer.phone }}</td>
+            <td><strong>{{ customer.name }}</strong></td>
+            <td>{{ customer.total_orders }}</td>
+            <td>₹{{ customer.total_spent }}</td>
+            <td>{{ customer.last_order_date[:19] if customer.last_order_date else '-' }}</td>
+            <td>{{ customer.joined_date[:19] if customer.joined_date else '-' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
