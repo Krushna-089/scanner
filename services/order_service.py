@@ -1,10 +1,10 @@
-# services/order_service.py (only the create_order function - rest unchanged)
-from json_db import read_json, write_json
+# services/order_service.py
+from json_db import read_json, write_json, get_timestamp
 import uuid
-from datetime import datetime
-from debug_logger import log  # Add this import
+from debug_logger import log
 
 def create_order(name, phone, cart, total):
+    """Create a new order"""
     log(f"Creating order for {name}, phone: {phone}, total: {total}", "INFO")
     
     orders = read_json("orders.json")
@@ -21,7 +21,7 @@ def create_order(name, phone, cart, total):
         "cart": cart,
         "total": calculated_total,
         "status": "received",
-        "created_at": datetime.now().isoformat()
+        "created_at": get_timestamp()
     }
     
     orders.append(order)
@@ -53,30 +53,12 @@ def get_order_by_order_number(order_number):
     return get_order_by_id(order_number)
 
 def update_order_status(order_number, new_status):
-    orders = read_json("orders.json")
-    for order in orders:
-        if order["order_number"] == order_number:
-            order["status"] = new_status
-            write_json("orders.json", orders)
-            return True
-    return False
-
-def calculate_order_total(cart):
-    total = 0
-    for item in cart:
-        total += item["price"] * item["quantity"]
-        for addon in item.get("addons", []):
-            total += addon["price"] * item["quantity"]
-    return round(total, 2)
-# services/order_service.py - Add these functions
-
-def update_order_status(order_number, new_status):
     """Update order status and return the updated order"""
     orders = read_json("orders.json")
     
     for order in orders:
         if order["order_number"] == order_number:
-            old_status = order.get("status")
+            old_status = order.get("status", "unknown")
             order["status"] = new_status
             order["updated_at"] = get_timestamp()
             
@@ -86,11 +68,11 @@ def update_order_status(order_number, new_status):
             return None
     return None
 
-def get_order_by_order_number(order_number):
-    """Get order by order number"""
-    orders = read_json("orders.json")
-    for order in orders:
-        if order["order_number"] == order_number:
-            return order
-    return None
-
+def calculate_order_total(cart):
+    """Calculate total price of order"""
+    total = 0
+    for item in cart:
+        total += item["price"] * item["quantity"]
+        for addon in item.get("addons", []):
+            total += addon["price"] * item["quantity"]
+    return round(total, 2)
