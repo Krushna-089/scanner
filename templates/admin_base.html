@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodieHub Admin - {% block title %}Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+    <div class="admin-container">
+        <nav class="admin-nav">
+            <div class="nav-brand">🍽️ FoodieHub Admin</div>
+            <ul class="nav-menu">
+                <li><a href="/admin">Dashboard</a></li>
+                <li><a href="/admin/orders">Orders</a></li>
+                <li><a href="/admin/customers">Customers</a></li>
+                <li><a href="/admin/promotions">Promotions</a></li>
+                <li><a href="/debug" target="_blank">Debug Console</a></li>
+            </ul>
+        </nav>
+        <main class="admin-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
