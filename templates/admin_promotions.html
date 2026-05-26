@@ -1,0 +1,78 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Promotions{% endblock %}
+
+{% block content %}
+<h1>Send Promotion Campaign</h1>
+
+<div class="promotion-form card">
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Campaign Type:</label>
+            <select name="type" id="type" onchange="toggleImageUpload()">
+                <option value="text">Text Message</option>
+                <option value="image">Image Message</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Message:</label>
+            <textarea name="message" rows="5" placeholder="Enter your promotion message..." required></textarea>
+            <small>Supports emojis and line breaks</small>
+        </div>
+        
+        <div class="form-group" id="image-upload-group" style="display:none;">
+            <label>Upload Image:</label>
+            <input type="file" name="image" accept="image/*">
+            <small>Supported: PNG, JPG, JPEG, GIF, WEBP</small>
+        </div>
+        
+        <button type="submit" class="btn-primary">Send Campaign to All Customers</button>
+    </form>
+</div>
+
+{% if success %}
+<div class="success-message">
+    ✅ Campaign sent successfully to {{ results|length }} customers!
+</div>
+{% endif %}
+
+<h2>Previous Campaigns</h2>
+
+<table class="data-table full-width">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Content</th>
+            <th>Recipients</th>
+            <th>Success</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for promo in promotions|reverse %}
+        <tr>
+            <td>#{{ promo.id }}</td>
+            <td><span class="status-badge">{{ promo.type }}</span></td>
+            <td>{{ promo.content[:100] }}{% if promo.content|length > 100 %}...{% endif %}</td>
+            <td>{{ promo.recipients_count }}</td>
+            <td>{{ promo.successful_count }}/{{ promo.recipients_count }}</td>
+            <td>{{ promo.created_at[:19] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+function toggleImageUpload() {
+    var type = document.getElementById('type').value;
+    var imageGroup = document.getElementById('image-upload-group');
+    if (type === 'image') {
+        imageGroup.style.display = 'block';
+    } else {
+        imageGroup.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
