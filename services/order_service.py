@@ -68,3 +68,29 @@ def calculate_order_total(cart):
         for addon in item.get("addons", []):
             total += addon["price"] * item["quantity"]
     return round(total, 2)
+# services/order_service.py - Add these functions
+
+def update_order_status(order_number, new_status):
+    """Update order status and return the updated order"""
+    orders = read_json("orders.json")
+    
+    for order in orders:
+        if order["order_number"] == order_number:
+            old_status = order.get("status")
+            order["status"] = new_status
+            order["updated_at"] = get_timestamp()
+            
+            if write_json("orders.json", orders):
+                log(f"Order {order_number} status updated: {old_status} → {new_status}", "INFO")
+                return order
+            return None
+    return None
+
+def get_order_by_order_number(order_number):
+    """Get order by order number"""
+    orders = read_json("orders.json")
+    for order in orders:
+        if order["order_number"] == order_number:
+            return order
+    return None
+
