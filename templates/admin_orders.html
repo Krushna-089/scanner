@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Orders{% endblock %}
+
+{% block content %}
+<h1>Orders Management</h1>
+
+<table class="data-table full-width">
+    <thead>
+        <tr>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Phone</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Bill Total</th>
+            <th>Status</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for order in orders|reverse %}
+        <tr>
+            <td><strong>{{ order.order_number }}</strong></td>
+            <td>{{ order.name }}</td>
+            <td>{{ order.phone }}</td>
+            <td>
+                {% for item in order.cart %}
+                • {{ item.name }} x{{ item.quantity }}<br>
+                {% endfor %}
+            </td>
+            <td>₹{{ order.total }}</td>
+            <td>
+                {% if bill_lookup[order.order_number] %}
+                ₹{{ bill_lookup[order.order_number].total }}
+                {% else %}
+                -
+                {% endif %}
+            </td>
+            <td><span class="status-badge">{{ order.status }}</span></td>
+            <td>{{ order.created_at[:19] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
