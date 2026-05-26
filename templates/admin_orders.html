@@ -3,7 +3,12 @@
 {% block title %}Orders{% endblock %}
 
 {% block content %}
-<h1>Orders Management</h1>
+<h1>📦 Order Management</h1>
+
+<div class="card">
+    <h3>Update Order Status</h3>
+    <p>Click on any order's status button to update and notify customer via WhatsApp</p>
+</div>
 
 <table class="data-table full-width">
     <thead>
@@ -13,9 +18,9 @@
             <th>Phone</th>
             <th>Items</th>
             <th>Total</th>
-            <th>Bill Total</th>
-            <th>Status</th>
-            <th>Date</th>
+            <th>Current Status</th>
+            <th>Update Status</th>
+            <th>Order Date</th>
         </tr>
     </thead>
     <tbody>
@@ -31,16 +36,131 @@
             </td>
             <td>₹{{ order.total }}</td>
             <td>
-                {% if bill_lookup[order.order_number] %}
-                ₹{{ bill_lookup[order.order_number].total }}
-                {% else %}
-                -
-                {% endif %}
+                <span class="status-badge status-{{ order.status }}">
+                    {{ get_status_icon(order.status) }} {{ order.status.upper() }}
+                </span>
             </td>
-            <td><span class="status-badge">{{ order.status }}</span></td>
-            <td>{{ order.created_at[:19] }}</td>
+            <td>
+                <select class="status-select" data-order-id="{{ order.order_number }}" data-current="{{ order.status }}">
+                    <option value="received" {% if order.status == 'received' %}selected{% endif %}>📥 Received</option>
+                    <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>👨‍🍳 Preparing</option>
+                    <option value="cooked" {% if order.status == 'cooked' %}selected{% endif %}>🍳 Cooked</option>
+                    <option value="ready" {% if order.status == 'ready' %}selected{% endif %}>✅ Ready</option>
+                    <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>🏁 Delivered</option>
+                    <option value="completed" {% if order.status == 'completed' %}selected{% endif %}>⭐ Completed</option>
+                    <option value="rejected" {% if order.status == 'rejected' %}selected{% endif %}>❌ Rejected</option>
+                </select>
+            </td>
+            <td>{{ order.created_at[:19] if order.created_at else '-' }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+
+<style>
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.status-received { background: #e3f2fd; color: #1976d2; }
+.status-preparing { background: #fff3e0; color: #f57c00; }
+.status-cooked { background: #f3e5f5; color: #7b1fa2; }
+.status-ready { background: #e8f5e9; color: #388e3c; }
+.status-delivered { background: #e0f2f1; color: #00695c; }
+.status-completed { background: #c8e6c9; color: #2e7d32; }
+.status-rejected { background: #ffebee; color: #c62828; }
+
+.status-select {
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 0.9rem;
+    cursor: pointer;
+    background: white;
+}
+
+.status-select:hover {
+    border-color: #667eea;
+}
+
+.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+</style>
+
+<script>
+function getStatusIcon(status) {
+    const icons = {
+        'received': '📥',
+        'preparing': '👨‍🍳',
+        'cooked': '🍳',
+        'ready': '✅',
+        'delivered': '🏁',
+        'completed': '⭐',
+        'rejected': '❌'
+    };
+    return icons[status] || '📌';
+}
+
+document.querySelectorAll('.status-select').forEach(select => {
+    select.addEventListener('change', async function() {
+        const orderId = this.dataset.orderId;
+        const currentStatus = this.dataset.current;
+        const newStatus = this.value;
+        
+        if (currentStatus === newStatus) {
+            return;
+        }
+        
+        // Confirm with admin
+        const confirmMessage = `Update order ${orderId} from ${currentStatus.toUpperCase()} to ${newStatus.toUpperCase()}?\n\nCustomer will receive WhatsApp notification immediately.`;
+        
+        if (!confirm(confirmMessage)) {
+            this.value = currentStatus;
+            return;
+        }
+        
+        // Show loading state
+        this.classList.add('loading');
+        const originalText = this.options[this.selectedIndex].text;
+        
+        const formData = new FormData();
+        formData.append('order_id', orderId);
+        formData.append('status', newStatus);
+        
+        try {
+            const response = await fetch('/admin/update-status', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Update the current status in dataset
+                this.dataset.current = newStatus;
+                
+                // Show success message
+                alert(`✅ ${result.message}`);
+                
+                // Reload to update status badge
+                location.reload();
+            } else {
+                alert(`❌ Failed: ${result.message}`);
+                this.value = currentStatus;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('❌ Network error. Please try again.');
+            this.value = currentStatus;
+        } finally {
+            this.classList.remove('loading');
+        }
+    });
+});
+</script>
 {% endblock %}
