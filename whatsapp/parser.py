@@ -57,21 +57,21 @@ def format_bill_message(order, bill, cart):
     
     message = f"""🧾 *ORDER CONFIRMED* 🧾
 
-*Order ID:* {order['order_number']}
-*Name:* {order['name']}
-
-*Items Ordered:*
-{items_text}
-
-*Bill Details:*
-Subtotal: ₹{bill['subtotal']}
-GST (5%): ₹{bill['gst']}
-Delivery: ₹{bill['delivery_charge']}
-━━━━━━━━━━━━━━━
-💰 *Total: ₹{bill['total']}*
-
-Thank you for ordering from FoodieHub! ❤️
-
-Your order is being prepared. We'll notify you when it's ready!"""
+        *Order ID:* {order['order_number']}
+        *Name:* {order['name']}
+        
+        *Items Ordered:*
+        {items_text}
+        
+        *Bill Details:*
+        Subtotal: ₹{bill['subtotal']}
+        GST (5%): ₹{bill['gst']}
+        Delivery: ₹{bill['delivery_charge']}
+        ━━━━━━━━━━━━━━━
+        💰 *Total: ₹{bill['total']}*
+        
+        Thank you for ordering from FoodieHub! ❤️
+        
+        Your order is being prepared. We'll notify you when it's ready!"""
     
-    return message
+return message
