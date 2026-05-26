@@ -1,15 +1,19 @@
-
 # whatsapp/sender.py
 import requests
 import json
+import os
 from debug_logger import log
-import re  # <-- REQUIRED
+import re
+from dotenv import load_dotenv
+from services.message_service import save_message
 
+load_dotenv()
 
-TOKEN = "EAAODBhndGMkBRpH0qhey4I8b1DojlC9XWwJZCY8To0RsJVPWIMa0lN7MXFhLGFwul10Gv1HelxN3HqSpcNb6nn8sK1jXJqlPEP8clWx6ZCBBZCPdjpSzzZBYK2maTfHH1TwqDyrQUuJMb0ku5czIy3281sZBCbgVmTvkBzheGhrY00dpFzibjhhfkocQXLnJZC0akNWAsUlqs2rO1767Xd68IAZAbijuUSD3mPGZBceimfZCCGjUAN8oBRu5pTI6jVH9vo8AdQCJoxYpkhW93JVUI6zxpefND0CVT5xhP5wZDZD"
-PHONE_ID = "1087735387757925"
+TOKEN = os.getenv("WHATSAPP_TOKEN")
+PHONE_ID = os.getenv("PHONE_NUMBER_ID")
 
-def send_message(to, text):
+def send_text_message(to, text):
+    """Send plain text message"""
     url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
     headers = {
         "Authorization": f"Bearer {TOKEN}",
@@ -20,24 +24,94 @@ def send_message(to, text):
         "to": to,
         "text": {"body": text}
     }
+    
     log(f"Sending text to {to}", "DEBUG")
     response = requests.post(url, headers=headers, json=data)
-    log(f"Text response: {response.status_code}", "DEBUG")
-    if response.status_code != 200:
+    
+    # Save to message history
+    if response.status_code == 200:
+        save_message(to, "text", text)
+    else:
         log(f"Text error: {response.text}", "ERROR")
+        save_message(to, "text", text, status="failed")
+    
     return response.json()
 
-def send_list_message(to, body_text, button_text, sections):
-    """
-    Send a WhatsApp Interactive List Message (NO markdown allowed in header/body)
-    """
+def send_image_message(to, image_url, caption=""):
+    """Send image message"""
+    url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "image",
+        "image": {
+            "link": image_url,
+            "caption": caption[:200]  # WhatsApp caption limit
+        }
+    }
+    
+    log(f"Sending image to {to}: {image_url}", "DEBUG")
+    response = requests.post(url, headers=headers, json=data)
+    
+    # Save to message history
+    if response.status_code == 200:
+        save_message(to, "image", f"Image: {image_url}\nCaption: {caption}")
+    else:
+        log(f"Image error: {response.text}", "ERROR")
+        save_message(to, "image", f"Image: {image_url}", status="failed")
+    
+    return response.json()
+
+def send_template_message(to, template_name, language="en", components=None):
+    """Send template message"""
     url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
     headers = {
         "Authorization": f"Bearer {TOKEN}",
         "Content-Type": "application/json"
     }
     
-    # Remove all markdown characters from body_text
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": language}
+        }
+    }
+    
+    if components:
+        data["template"]["components"] = components
+    
+    log(f"Sending template to {to}: {template_name}", "DEBUG")
+    response = requests.post(url, headers=headers, json=data)
+    
+    # Save to message history
+    if response.status_code == 200:
+        save_message(to, "template", f"Template: {template_name}")
+    else:
+        log(f"Template error: {response.text}", "ERROR")
+        save_message(to, "template", f"Template: {template_name}", status="failed")
+    
+    return response.json()
+
+# Keep existing functions for backward compatibility
+def send_message(to, text):
+    """Alias for send_text_message"""
+    return send_text_message(to, text)
+
+def send_list_message(to, body_text, button_text, sections):
+    """Send a WhatsApp Interactive List Message"""
+    url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
     clean_body = re.sub(r'[*_~`]', '', body_text)
     clean_body = clean_body.replace('\n', ' ').strip()
     
@@ -61,25 +135,18 @@ def send_list_message(to, body_text, button_text, sections):
     }
     
     log(f"Sending list message to {to}", "DEBUG")
-    log(f"List payload: {json.dumps(data, indent=2)[:500]}", "DEBUG")
-    
     response = requests.post(url, headers=headers, json=data)
-    log(f"List message response: {response.status_code}", "DEBUG")
     
-    if response.status_code != 200:
-        log(f"ERROR: {response.text}", "ERROR")
-        # DO NOT fallback to plain text - we want to see the error
-        # Instead, send a debug message to the user
-        send_message(to, "⚠️ Sorry, the menu format temporarily failed. Please try again or type 'hi' to restart.")
+    # Save to message history
+    if response.status_code == 200:
+        save_message(to, "list", body_text_short)
     else:
-        log("List message sent successfully", "INFO")
+        save_message(to, "list", body_text_short, status="failed")
     
     return response.json()
 
 def send_reply_buttons(to, text, buttons):
-    """
-    Send WhatsApp Interactive Reply Buttons (max 3 buttons)
-    """
+    """Send WhatsApp Interactive Reply Buttons (max 3 buttons)"""
     url = f"https://graph.facebook.com/v18.0/{PHONE_ID}/messages"
     headers = {
         "Authorization": f"Bearer {TOKEN}",
@@ -109,10 +176,12 @@ def send_reply_buttons(to, text, buttons):
     
     log(f"Sending buttons to {to}", "DEBUG")
     response = requests.post(url, headers=headers, json=data)
-    log(f"Buttons response: {response.status_code}", "DEBUG")
     
-    if response.status_code != 200:
+    # Save to message history
+    if response.status_code == 200:
+        save_message(to, "buttons", text)
+    else:
         log(f"ERROR: {response.text}", "ERROR")
-        send_message(to, "⚠️ Button menu failed. Please type 'hi' to restart.")
+        save_message(to, "buttons", text, status="failed")
     
     return response.json()
