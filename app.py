@@ -36,6 +36,24 @@ from services.order_service import update_order_status, get_order_by_order_numbe
 from whatsapp.sender import send_text_message
 from services.message_service import save_message
 
+
+# app.py - Add this before your routes
+@app.context_processor
+def utility_processor():
+    def get_status_icon(status):
+        icons = {
+            'received': '📥',
+            'preparing': '👨‍🍳', 
+            'cooked': '🍳',
+            'ready': '✅',
+            'delivered': '🏁',
+            'completed': '⭐',
+            'rejected': '❌'
+        }
+        return icons.get(status, '📌')
+    
+    return dict(get_status_icon=get_status_icon)
+    
 # Add this route to app.py (after your existing admin routes)
 @app.route("/admin/update-status", methods=["POST"])
 def admin_update_status():
