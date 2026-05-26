@@ -41,7 +41,7 @@ if session["step"] == "awaiting_phone":
     
     # Clear session
     clear_session(user)
-    return
+return
 
 # Add helper function at the end of parser.py:
 def format_bill_message(order, bill, cart):
