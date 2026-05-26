@@ -30,6 +30,106 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+
+# app.py - Add this import at the top
+from services.order_service import update_order_status, get_order_by_order_number
+from whatsapp.sender import send_text_message
+from services.message_service import save_message
+
+# Add this route to app.py (after your existing admin routes)
+@app.route("/admin/update-status", methods=["POST"])
+def admin_update_status():
+    # Authentication
+    auth = request.authorization
+    if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
+        return jsonify({"success": False, "message": "Authentication required"}), 401
+    
+    order_id = request.form.get("order_id")
+    new_status = request.form.get("status")
+    
+    if not order_id or not new_status:
+        return jsonify({"success": False, "message": "Missing order_id or status"}), 400
+    
+    # Update order status
+    updated_order = update_order_status(order_id, new_status)
+    
+    if updated_order:
+        # Send WhatsApp notification to customer
+        customer_phone = updated_order.get("phone")
+        customer_name = updated_order.get("name")
+        
+        # Status-specific messages with emojis
+        status_messages = {
+            "received": "✅ Your order has been **received** and is waiting to be prepared!",
+            "preparing": "👨‍🍳 Good news! Your order is now being **prepared** by our chefs!",
+            "cooked": "🍳 Great news! Your order has been **cooked** and is being packed!",
+            "ready": "🎉 Your order is **READY** for pickup/delivery! Come get your delicious food! 🍕",
+            "delivered": "🏁 Your order has been **delivered**! Enjoy your meal! ❤️",
+            "completed": "⭐ Order **completed**! Thank you for choosing FoodieHub!",
+            "rejected": "❌ Unfortunately, your order could not be processed. Please contact support."
+        }
+        
+        message = status_messages.get(new_status, f"Your order status has been updated to: **{new_status.upper()}**")
+        
+        # Create beautiful WhatsApp message
+        whatsapp_message = f"""📦 *Order Status Update* - {order_id}
+
+*Customer:* {customer_name}
+*Status:* {new_status.upper()} {get_status_emoji(new_status)}
+
+{message}
+
+*Order Details:*
+{format_order_summary(updated_order)}
+
+Thank you for ordering from FoodieHub! 🍽️"""
+
+        # Send the message
+        result = send_text_message(customer_phone, whatsapp_message)
+        
+        # Save to message history
+        save_message(customer_phone, "order_status_update", f"Order {order_id} → {new_status}")
+        
+        log(f"Status update notification sent to {customer_phone} for order {order_id}", "INFO")
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Order {order_id} updated to {new_status} and customer notified"
+        })
+    else:
+        return jsonify({"success": False, "message": "Order not found"}), 404
+
+def get_status_emoji(status):
+    """Get emoji for order status"""
+    emojis = {
+        "received": "📥",
+        "preparing": "👨‍🍳",
+        "cooked": "🍳",
+        "ready": "✅",
+        "delivered": "🏁",
+        "completed": "⭐",
+        "rejected": "❌"
+    }
+    return emojis.get(status, "📌")
+
+def format_order_summary(order):
+    """Format order items for WhatsApp message"""
+    items_text = ""
+    for item in order.get("cart", []):
+        items_text += f"• {item['name']} x{item['quantity']} = ₹{item['price'] * item['quantity']}\n"
+        if item.get("addons"):
+            addon_names = ", ".join([a["name"] for a in item["addons"]])
+            items_text += f"  *Add-ons:* {addon_names}\n"
+        if item.get("spice"):
+            items_text += f"  *Spice:* {item['spice']}\n"
+    
+    return f"""
+{items_text}
+*Total:* ₹{order.get('total', 0)}"""
+
+
+
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
