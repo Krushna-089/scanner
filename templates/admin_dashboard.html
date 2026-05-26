@@ -1,0 +1,67 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_orders }}</div>
+        <div class="stat-label">Total Orders</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_customers }}</div>
+        <div class="stat-label">Total Customers</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹{{ stats.total_revenue }}</div>
+        <div class="stat-label">Total Revenue</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹{{ stats.avg_order_value }}</div>
+        <div class="stat-label">Avg Order Value</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_messages }}</div>
+        <div class="stat-label">Messages Sent</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_promotions }}</div>
+        <div class="stat-label">Campaigns Sent</div>
+    </div>
+</div>
+
+<div class="charts-row">
+    <div class="card">
+        <h3>Order Status Breakdown</h3>
+        <table class="data-table">
+            {% for status, count in stats.order_status_count.items() %}
+            <tr>
+                <td>{{ status|upper }}</td>
+                <td><strong>{{ count }}</strong></td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    
+    <div class="card">
+        <h3>Recent Orders</h3>
+        <table class="data-table">
+            <thead>
+                <tr><th>Order ID</th><th>Customer</th><th>Total</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                {% for order in stats.recent_orders %}
+                <tr>
+                    <td>{{ order.order_number }}</td>
+                    <td>{{ order.name }}</td>
+                    <td>₹{{ order.total }}</td>
+                    <td><span class="status-badge">{{ order.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
