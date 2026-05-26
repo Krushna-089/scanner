@@ -1,16 +1,40 @@
 # app.py
-from flask import Flask, request, render_template_string, jsonify
+from flask import Flask, request, render_template_string, jsonify, render_template, session as flask_session
 from whatsapp.parser import handle_message
 from debug_logger import log, get_logs, clear_logs
+from services.admin_service import get_admin_stats
+from services.customer_service import get_all_customers
+from services.order_service import read_json as read_orders
+from services.promotion_service import send_promotion_to_all, get_all_promotions
+from services.billing_service import get_all_bills
 import json
+import os
+from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
+import uuid
+
+load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 
-VERIFY_TOKEN = "12345"
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 
-# HTML debug page (auto-refreshes every 3 seconds)
-DEBUG_PAGE = """
-<!DOCTYPE html>
+# Admin credentials (in production, use proper authentication)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
+# File upload configuration
+UPLOAD_FOLDER = "static/uploads"
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# HTML debug page (keep as is from original)
+DEBUG_PAGE = """<!DOCTYPE html>
 <html>
 <head>
     <title>WhatsApp Bot Debug Console</title>
@@ -58,7 +82,6 @@ def webhook():
         log("Invalid verify token received", "ERROR")
         return "Invalid", 403
 
-    # POST: receive webhook data
     data = request.json
     log(f"📨 Webhook received: {json.dumps(data, indent=2)[:500]}", "DEBUG")
     
@@ -82,6 +105,71 @@ def debug_logs():
 def clear_logs_route():
     clear_logs()
     return "Logs cleared", 200
+
+# Admin Routes
+@app.route("/admin")
+def admin_dashboard():
+    # Simple auth (in production, use proper authentication)
+    auth = request.authorization
+    if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
+        return "Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Admin Login"'}
+    
+    stats = get_admin_stats()
+    return render_template("admin_dashboard.html", stats=stats)
+
+@app.route("/admin/orders")
+def admin_orders():
+    auth = request.authorization
+    if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
+        return "Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Admin Login"'}
+    
+    orders = read_orders("orders.json")
+    bills = get_all_bills()
+    
+    # Create bill lookup
+    bill_lookup = {bill["order_id"]: bill for bill in bills}
+    
+    return render_template("admin_orders.html", orders=orders, bill_lookup=bill_lookup)
+
+@app.route("/admin/customers")
+def admin_customers():
+    auth = request.authorization
+    if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
+        return "Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Admin Login"'}
+    
+    customers = get_all_customers()
+    return render_template("admin_customers.html", customers=customers)
+
+@app.route("/admin/promotions", methods=["GET", "POST"])
+def admin_promotions():
+    auth = request.authorization
+    if not auth or auth.username != ADMIN_USERNAME or auth.password != ADMIN_PASSWORD:
+        return "Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Admin Login"'}
+    
+    if request.method == "POST":
+        promotion_type = request.form.get("type", "text")
+        message = request.form.get("message")
+        image_url = None
+        
+        # Handle image upload
+        if promotion_type == "image" and "image" in request.files:
+            file = request.files["image"]
+            if file and allowed_file(file.filename):
+                filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                image_url = request.url_root.rstrip('/') + '/' + filepath.replace('\\', '/')
+        
+        # Send promotion
+        results = send_promotion_to_all(promotion_type, message, image_url)
+        
+        return render_template("admin_promotions.html", 
+                             promotions=get_all_promotions(),
+                             success=True, 
+                             results=results)
+    
+    return render_template("admin_promotions.html", 
+                         promotions=get_all_promotions())
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
