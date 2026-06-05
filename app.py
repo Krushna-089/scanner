@@ -289,5 +289,10 @@ def admin_promotions():
     return render_template("admin_promotions.html", 
                          promotions=get_all_promotions())
 
+@app.route("/privacy-policy")
+def privacy_policy():
+    return render_template("privacy_policy.html")
+
+
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
