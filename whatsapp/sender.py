@@ -21,7 +21,9 @@ def send_text_message(to, text):
     }
     data = {
         "messaging_product": "whatsapp",
+        "recipient_type": "individual",
         "to": to,
+        "type": "text",
         "text": {"body": text}
     }
     
